@@ -1,10 +1,10 @@
-# Exemplo de Sistema em Python fazendo CRUD no Oracle
+# istema em Python fazendo CRUD no Oracle
 
-Esse sistema de exemplo é composto por um conjunto de tabelas que representam pedidos de vendas, contendo tabelas como: clientes, fornecedores, produtos, pedidos e itens de pedido.
+Esse sistema é composto por um conjunto de tabelas que representam um sistema de locadora contendo tabelas como: clientes, carros e locações.
 
 O sistema exige que as tabelas existam, então basta executar o script Python a seguir para criação das tabelas e preenchimento de dados de exemplos:
 ```shell
-~$ python create_tables_and_records.py
+~$ python create_tables.py
 ```
 
 Para executar o sistema basta executar o script Python a seguir:
@@ -12,13 +12,10 @@ Para executar o sistema basta executar o script Python a seguir:
 ~$ python principal.py
 ```
 
-Para que possa testar as conexões com o banco de dados Oracle e o módulo Conexion desenvolvido para esse projeto, basta executar o script Python a seguir:
-```shell
-~$ python test.py
-```
 
 ## Organização
-- [diagrams](diagrams): Nesse diretório está o [diagrama relacional](diagrams/DIAGRAMA_RELACIONAL_PEDIDOS.pdf) (lógico) do sistema.
+\/ ABAIXO EDIÇAO PENDENTE FAVOR DESCONSIDERAR \/
+- [Diagramas_Relacionais](diagrams): Nesse diretório está o [diagrama relacional](diagrams/DIAGRAMA_RELACIONAL_PEDIDOS.pdf) (lógico) do sistema.
     * O sistema possui cinco entidades: PRODUTOS, CLIENTES, FORNECEDORES, PEDIDOS e ITENS_PEDIDO
 - [sql](sql): Nesse diretório estão os scripts para criação das tabelas e inserção de dados fictícios para testes do sistema
     * Certifique-se de que o usuário do banco possui todos os privilégios antes de executar os scripts de criação, caso ocorra erro, execute o comando a seguir com o superusuário via SQL Developer: `GRANT ALL PRIVILEGES TO LABDATABASE;`
@@ -93,37 +90,3 @@ Para que possa testar as conexões com o banco de dados Oracle e o módulo Conex
     * [create_tables_and_records.py](src/create_tables_and_records.py): Script responsável por criar as tabelas e registros fictícios. Esse script deve ser executado antes do script [principal.py](src/principal.py) para gerar as tabelas, caso não execute os scripts diretamente no SQL Developer ou em alguma outra IDE de acesso ao Banco de Dados.
     * [principal.py](src/principal.py): Script responsável por ser a interface entre o usuário e os módulos de acesso ao Banco de Dados. Deve ser executado após a criação das tabelas.
 
-### Bibliotecas Utilizadas
-- [requirements.txt](src/requirements.txt): `pip install -r requirements.txt`
-
-#### Em caso de problemas com a execução dos software dando a seguinte mensagem `ORA-28001: the password has expired`, execute as linhas de comando a seguir no Oracle:
-- `ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED;`
-- `ALTER USER labdatabase IDENTIFIED BY "labDatabase2022";`
-- `ALTER USER labdatabase IDENTIFIED BY  "labDatabase2022";`
-
-### Instalando Oracle InstantClient
-- Baixe a versão do [InstantClient](https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html) de acordo com a versão do Banco de Dados
-- Caso esteja utilizando uma distribuição Linux baseado em Debian, será necessário executar o comando a seguir para converter o arquivo .rpm para .deb.
-  ```shell
-  sudo alien --scripts oracle-instantclient18.5-basic-18.5.0.0.0-3.x86_64.rpm
-  ```
-- Descompacte o arquivo e será gerado um diretório em um diretório de fácil acesso.
-- Mova os diretórios lib e share para dentro do diretório do InstantClient
-  ```shell
-  sudo mv lib /usr/local/oracle/instantclient_18_5/
-  ```
-  
-  ```shell
-  sudo mv share instantclient_18_5/
-  ```
-- Edite o arquivo `.bash_profile` incluindo as linhas a seguir ao final do arquivo:
-  ```shell
-  export ORACLE_HOME=/usr/local/oracle/instantclient_18_5/lib/oracle/18.5/client64
-  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
-  export PATH=$PATH:$ORACLE_HOME/bin
-  export PATH
-  ```
-
-## Contato
-- [LinkedIn](https://linkedin.com/in/howardroatti)
-- [E-Mail](mailto:howardcruzroatti@gmail.com)
