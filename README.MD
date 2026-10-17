@@ -1,4 +1,4 @@
-# istema em Python fazendo CRUD no Oracle
+# Sistema em Python fazendo CRUD no Oracle
 
 Esse sistema é composto por um conjunto de tabelas que representam um sistema de locadora contendo tabelas como: clientes, carros e locações.
 
