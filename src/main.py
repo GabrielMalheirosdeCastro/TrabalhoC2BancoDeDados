@@ -1,3 +1,4 @@
+from datetime import datetime
 from Conexao import Conexao
 from Classes.Cliente import Cliente
 from Classes.Carro import Carro
@@ -7,212 +8,262 @@ from ControllerClasses.ControllerCarro import ControllerCarro
 from ControllerClasses.ControllerLocacao import ControllerLocacao
 from Relatorios import Relatorios
 
+
+def ler_inteiro(mensagem, minimo=None):
+    while True:
+        try:
+            valor = int(input(mensagem).strip())
+            if minimo is not None and valor < minimo:
+                print(f"[!] Informe um número maior ou igual a {minimo}.")
+                continue
+            return valor
+        except ValueError:
+            print("[!] Digite um número inteiro válido.")
+
+
+def ler_valor(mensagem, minimo=0.01):
+    while True:
+        try:
+            valor = float(input(mensagem).strip().replace(",", "."))
+            if valor < minimo:
+                print(f"[!] Informe um valor maior ou igual a {minimo:.2f}.")
+                continue
+            return valor
+        except ValueError:
+            print("[!] Digite um valor numérico válido (ex.: 120,00).")
+
+
+def ler_texto(mensagem):
+    while True:
+        valor = input(mensagem).strip()
+        if valor:
+            return valor
+        print("[!] Este campo é obrigatório.")
+
+
+def ler_data(mensagem):
+    while True:
+        entrada = input(mensagem).strip()
+        try:
+            return datetime.strptime(entrada, "%d/%m/%Y").date()
+        except ValueError:
+            print("[!] Data inválida. Use o formato DD/MM/AAAA.")
+
+
 def exibir_splash_screen(ctrl_cli, ctrl_car, ctrl_loc, conexao):
-    # Obtém a contagem de registos de cada tabela
     total_cli = ctrl_cli.total_registros(conexao)
     total_car = ctrl_car.total_registros(conexao)
     total_loc = ctrl_loc.total_registros(conexao)
-    
     print("=" * 65)
     print("         SISTEMA DE LOCAÇÃO DE VEÍCULOS")
     print(" Disciplina: Banco de Dados | Semestre: 2026/2")
     print(" Professor: Howard Roatti")
-    print(" Componentes do Grupo: Lucas de Souza Barboza e Grupo")
     print("-" * 65)
-    print(f" -> Total de Clientes cadastrados: {total_cli}")
-    print(f" -> Total de Carros cadastrados:   {total_car}")
-    print(f" -> Total de Locações registradas: {total_loc}")
+    print(f" Clientes cadastrados: {total_cli}")
+    print(f" Carros cadastrados:   {total_car}")
+    print(f" Locações registradas: {total_loc}")
     print("=" * 65)
 
+
+def obter_valor_diaria(conexao, id_carro):
+    cursor = conexao.cursor()
+    try:
+        cursor.execute(
+            "SELECT valor_diaria FROM carro WHERE id_carro = %s",
+            (id_carro,),
+        )
+        resultado = cursor.fetchone()
+        return float(resultado[0]) if resultado else None
+    finally:
+        cursor.close()
+
+
+def menu_relatorios(relatorios):
+    while True:
+        print("\n--- RELATÓRIOS ---\n1. Locações detalhadas\n2. Faturamento por modelo\n3. Voltar")
+        opcao = input("Escolha: ").strip()
+        if opcao == "1":
+            relatorios.relatorio_locacoes_detalhadas()
+        elif opcao == "2":
+            relatorios.relatorio_faturamento_por_modelo()
+        elif opcao == "3":
+            return
+        else:
+            print("[!] Opção inválida.")
+
+
+def menu_inserir(conexao, ctrl_cli, ctrl_car, ctrl_loc):
+    while True:
+        print("\n--- INSERIR ---\n1. Cliente\n2. Carro\n3. Locação\n4. Voltar")
+        opcao = input("Escolha: ").strip()
+        if opcao == "1":
+            cliente = Cliente(
+                nome=ler_texto("Nome: "),
+                cpf=ler_texto("CPF: "),
+                telefone=ler_texto("Telefone: "),
+            )
+            ctrl_cli.inserir(conexao, cliente)
+        elif opcao == "2":
+            carro = Carro(
+                modelo=ler_texto("Modelo: "),
+                marca=ler_texto("Marca: "),
+                placa=ler_texto("Placa: ").upper(),
+                valor_diaria=ler_valor("Valor da diária (R$): "),
+            )
+            ctrl_car.inserir(conexao, carro)
+        elif opcao == "3":
+            ctrl_cli.listar(conexao)
+            id_cliente = ler_inteiro("ID do cliente: ", 1)
+            ctrl_car.listar(conexao)
+            id_carro = ler_inteiro("ID do carro: ", 1)
+            data = ler_data("Data da locação (DD/MM/AAAA): ")
+            dias = ler_inteiro("Quantidade de dias: ", 1)
+            diaria = obter_valor_diaria(conexao, id_carro)
+            if diaria is None:
+                print("[!] Carro não encontrado.")
+                continue
+            locacao = Locacao(
+                cliente=Cliente(id_cliente=id_cliente),
+                carro=Carro(id_carro=id_carro),
+                data_locacao=data,
+                dias=dias,
+                valor_total=diaria * dias,
+            )
+            ctrl_loc.inserir(conexao, locacao)
+        elif opcao == "4":
+            return
+        else:
+            print("[!] Opção inválida.")
+
+
+def menu_remover(conexao, ctrl_cli, ctrl_car, ctrl_loc):
+    while True:
+        print("\n--- REMOVER ---\n1. Cliente\n2. Carro\n3. Locação\n4. Voltar")
+        opcao = input("Escolha: ").strip()
+        if opcao == "1":
+            ctrl_cli.listar(conexao)
+            ctrl_cli.remover(conexao, ler_inteiro("ID do cliente: ", 1))
+        elif opcao == "2":
+            ctrl_car.listar(conexao)
+            ctrl_car.remover(conexao, ler_inteiro("ID do carro: ", 1))
+        elif opcao == "3":
+            ctrl_loc.listar(conexao)
+            ctrl_loc.remover(conexao, ler_inteiro("ID da locação: ", 1))
+        elif opcao == "4":
+            return
+        else:
+            print("[!] Opção inválida.")
+
+
+def menu_atualizar(conexao, ctrl_cli, ctrl_car, ctrl_loc):
+    while True:
+        print("\n--- ATUALIZAR ---\n1. Cliente\n2. Carro\n3. Locação\n4. Voltar")
+        opcao = input("Escolha: ").strip()
+        if opcao == "1":
+            ctrl_cli.listar(conexao)
+            id_cliente = ler_inteiro("ID do cliente: ", 1)
+            if not ctrl_cli.cliente_existe(conexao, id_cliente):
+                print("[!] Cliente não encontrado.")
+                continue
+            ctrl_cli.atualizar(
+                conexao,
+                Cliente(
+                    id_cliente=id_cliente,
+                    nome=ler_texto("Novo nome: "),
+                    cpf=ler_texto("Novo CPF: "),
+                    telefone=ler_texto("Novo telefone: "),
+                ),
+            )
+        elif opcao == "2":
+            ctrl_car.listar(conexao)
+            id_carro = ler_inteiro("ID do carro: ", 1)
+            if not ctrl_car.carro_existe(conexao, id_carro):
+                print("[!] Carro não encontrado.")
+                continue
+            ctrl_car.atualizar(
+                conexao,
+                Carro(
+                    id_carro=id_carro,
+                    modelo=ler_texto("Novo modelo: "),
+                    marca=ler_texto("Nova marca: "),
+                    placa=ler_texto("Nova placa: ").upper(),
+                    valor_diaria=ler_valor("Novo valor da diária (R$): "),
+                ),
+            )
+        elif opcao == "3":
+            ctrl_loc.listar(conexao)
+            id_locacao = ler_inteiro("ID da locação: ", 1)
+            if not ctrl_loc.locacao_existe(conexao, id_locacao):
+                print("[!] Locação não encontrada.")
+                continue
+            ctrl_cli.listar(conexao)
+            id_cliente = ler_inteiro("Novo ID do cliente: ", 1)
+            ctrl_car.listar(conexao)
+            id_carro = ler_inteiro("Novo ID do carro: ", 1)
+            data = ler_data("Nova data (DD/MM/AAAA): ")
+            dias = ler_inteiro("Nova quantidade de dias: ", 1)
+            diaria = obter_valor_diaria(conexao, id_carro)
+            if diaria is None:
+                print("[!] Carro não encontrado.")
+                continue
+            ctrl_loc.atualizar(
+                conexao,
+                Locacao(
+                    id_locacao=id_locacao,
+                    cliente=Cliente(id_cliente=id_cliente),
+                    carro=Carro(id_carro=id_carro),
+                    data_locacao=data,
+                    dias=dias,
+                    valor_total=diaria * dias,
+                ),
+            )
+        elif opcao == "4":
+            return
+        else:
+            print("[!] Opção inválida.")
+
+
 def main():
-    # Inicializa a conexão com a base de dados
+    # Atenção: mantenha o nome do banco alinhado com a configuração acordada pelo grupo.
     db = Conexao(database="locadora_veiculos", user="root", password="")
     conexao = db.conectar()
-    
     if not conexao:
-        print("\n[!] Erro crítico: Não foi possível conectar ao banco de dados.")
+        print("\n[!] Não foi possível conectar ao banco de dados.")
         return
 
-    # Instancia TODAS as controladoras necessárias
-    ctrl_cli = ControllerCliente()
-    ctrl_car = ControllerCarro()
-    ctrl_loc = ControllerLocacao()
-    relatorios = Relatorios(conexao)
+    try:
+        ctrl_cli = ControllerCliente()
+        ctrl_car = ControllerCarro()
+        ctrl_loc = ControllerLocacao()
+        relatorios = Relatorios(conexao)
+        exibir_splash_screen(ctrl_cli, ctrl_car, ctrl_loc, conexao)
 
-    # Exibe a Splash Screen ao iniciar
-    exibir_splash_screen(ctrl_cli, ctrl_car, ctrl_loc, conexao)
+        while True:
+            print(
+                "\n================ MENU PRINCIPAL ================\n"
+                "1. Relatórios\n2. Inserir registros\n3. Remover registros\n"
+                "4. Atualizar registros\n5. Sair\n"
+                "================================================"
+            )
+            opcao = input("Escolha uma opção: ").strip()
+            if opcao == "1":
+                menu_relatorios(relatorios)
+            elif opcao == "2":
+                menu_inserir(conexao, ctrl_cli, ctrl_car, ctrl_loc)
+            elif opcao == "3":
+                menu_remover(conexao, ctrl_cli, ctrl_car, ctrl_loc)
+            elif opcao == "4":
+                menu_atualizar(conexao, ctrl_cli, ctrl_car, ctrl_loc)
+            elif opcao == "5":
+                print("\nAté logo!")
+                break
+            else:
+                print("[!] Opção inválida.")
+    except Exception as erro:
+        print(f"\n[!] Ocorreu um erro inesperado: {erro}")
+    finally:
+        db.desconectar()
 
-    # Loop principal do menu
-    while True:
-        print("\n=================== MENU PRINCIPAL ===================")
-        print("1. Relatórios")
-        print("2. Inserir Registros")
-        print("3. Remover Registros")
-        print("4. Atualizar Registros")
-        print("5. Sair")
-        print("======================================================")
-        
-        opcao = input("Escolha uma opção: ")
 
-        # 1. RELATÓRIOS
-        if opcao == "1":
-            while True:
-                print("\n--- SUBMENU RELATÓRIOS ---")
-                print("1. Relatório Detalhado de Locações (JOIN)")
-                print("2. Faturamento por Modelo de Carro (GROUP BY)")
-                print("3. Voltar ao Menu Principal")
-                op_rel = input("Escolha uma opção: ")
-                
-                if op_rel == "1":
-                    relatorios.relatorio_locacoes_detalhadas()
-                elif op_rel == "2":
-                    relatorios.relatorio_faturamento_por_modelo()
-                elif op_rel == "3":
-                    break
-                else:
-                    print("\n[!] Opção inválida!")
-
-        # 2. INSERIR REGISTROS
-        elif opcao == "2":
-            while True:
-                print("\n--- SUBMENU INSERIR ---")
-                print("1. Inserir Cliente")
-                print("2. Inserir Carro")
-                print("3. Inserir Locação")
-                print("4. Voltar ao Menu Principal")
-                op_ins = input("Escolha a entidade: ")
-
-                if op_ins == "1":
-                    nome = input("Nome do Cliente: ")
-                    cpf = input("CPF do Cliente: ")
-                    telefone = input("Telefone do Cliente: ")
-                    cli = Cliente(nome=nome, cpf=cpf, telefone=telefone)
-                    ctrl_cli.inserir(conexao, cli)
-                elif op_ins == "2":
-                    modelo = input("Modelo do Carro: ")
-                    marca = input("Marca do Carro: ")
-                    placa = input("Placa do Carro: ")
-                    diaria = float(input("Valor da Diária (ex: 120.00): "))
-                    car = Carro(modelo=modelo, marca=marca, placa=placa, valor_diaria=diaria)
-                    ctrl_car.inserir(conexao, car)
-                elif op_ins == "3":
-                    print("\nSelecione o Cliente e o Carro para a locação:")
-                    ctrl_cli.listar(conexao)
-                    id_cliente = int(input("\nInforme o ID do Cliente: "))
-                    
-                    ctrl_car.listar(conexao)
-                    id_carro = int(input("\nInforme o ID do Carro: "))
-                    
-                    data = input("Data da Locação (DD/MM/AAAA): ")
-                    dias = int(input("Quantidade de dias: "))
-                    
-                    cursor = conexao.cursor()
-                    cursor.execute("SELECT valor_diaria FROM carro WHERE id_carro = " + str(id_carro))
-                    res_diaria = cursor.fetchone()
-                    cursor.close()
-                    
-                    if res_diaria:
-                        valor_diaria = float(res_diaria[0])
-                        valor_total = valor_diaria * dias
-                        
-                        cli_obj = Cliente(id_cliente=id_cliente)
-                        car_obj = Carro(id_carro=id_carro)
-                        loc = Locacao(cliente=cli_obj, carro=car_obj, data_locacao=data, dias=dias, valor_total=valor_total)
-                        ctrl_loc.inserir(conexao, loc)
-                    else:
-                        print("\n[!] Carro não encontrado.")
-                elif op_ins == "4":
-                    break
-                else:
-                    print("\n[!] Opção inválida!")
-
-        # 3. REMOVER REGISTROS
-        elif opcao == "3":
-            while True:
-                print("\n--- SUBMENU REMOVER ---")
-                print("1. Remover Cliente")
-                print("2. Remover Carro")
-                print("3. Remover Locação")
-                print("4. Voltar ao Menu Principal")
-                op_rem = input("Escolha a entidade: ")
-
-                if op_rem == "1":
-                    ctrl_cli.listar(conexao)
-                    id_cli = int(input("\nInforme o ID do cliente que deseja remover: "))
-                    ctrl_cli.remover(conexao, id_cli)
-                elif op_rem == "2":
-                    ctrl_car.listar(conexao)
-                    id_car = int(input("\nInforme o ID do carro que deseja remover: "))
-                    ctrl_car.remover(conexao, id_car)
-                elif op_rem == "3":
-                    ctrl_loc.listar(conexao)
-                    id_loc = int(input("\nInforme o ID da locação que deseja remover: "))
-                    ctrl_loc.remover(conexao, id_loc)
-                elif op_rem == "4":
-                    break
-                else:
-                    print("\n[!] Opção inválida!")
-
-        # 4. ATUALIZAR REGISTROS
-        elif opcao == "4":
-            while True:
-                print("\n--- SUBMENU ATUALIZAR ---")
-                print("1. Atualizar Cliente")
-                print("2. Atualizar Carro")
-                print("3. Atualizar Locação")
-                print("4. Voltar ao Menu Principal")
-                op_atv = input("Escolha a entidade: ")
-
-                if op_atv == "1":
-                    ctrl_cli.listar(conexao)
-                    id_cli = int(input("\nInforme o ID do cliente que deseja atualizar: "))
-                    if ctrl_cli.cliente_existe(conexao, id_cli):
-                        nome = input("Novo Nome: ")
-                        cpf = input("Novo CPF: ")
-                        telefone = input("Novo Telefone: ")
-                        cli = Cliente(id_cliente=id_cli, nome=nome, cpf=cpf, telefone=telefone)
-                        ctrl_cli.atualizar(conexao, cli)
-                    else:
-                        print("\n[!] Cliente não encontrado.")
-                elif op_atv == "2":
-                    ctrl_car.listar(conexao)
-                    id_car = int(input("\nInforme o ID do carro que deseja atualizar: "))
-                    if ctrl_car.carro_existe(conexao, id_car):
-                        modelo = input("Novo Modelo: ")
-                        marca = input("Nova Marca: ")
-                        placa = input("Nova Placa: ")
-                        diaria = float(input("Novo Valor da Diária: "))
-                        car = Carro(id_carro=id_car, modelo=modelo, marca=marca, placa=placa, valor_diaria=diaria)
-                        ctrl_car.atualizar(conexao, car)
-                    else:
-                        print("\n[!] Carro não encontrado.")
-                elif op_atv == "3":
-                    ctrl_loc.listar(conexao)
-                    id_loc = int(input("\nInforme o ID da locação que deseja atualizar: "))
-                    if ctrl_loc.locacao_existe(conexao, id_loc):
-                        ctrl_cli.listar(conexao)
-                        id_cliente = int(input("\nNovo ID do Cliente: "))
-                        ctrl_car.listar(conexao)
-                        id_carro = int(input("\nNovo ID do Carro: "))
-                        data = input("Nova Data (DD/MM/AAAA): ")
-                        dias = int(input("Nova Quantidade de Dias: "))
-                        
-                        cursor = conexao.cursor()
-                        cursor.execute("SELECT valor_diaria FROM carro WHERE id_carro = " + str(id_carro))
-                        res_diaria = cursor.fetchone()
-                        cursor.close()
-                        
-                        if res_diaria:
-                            valor_total = float(res_diaria[0]) * dias
-                            cli_obj = Cliente(id_cliente=id_cliente)
-                            car_obj = Carro(id_carro=id_carro)
-                            loc = Locacao(id_locacao=id_loc, cliente=cli_obj, carro=car_obj, data_locacao=data, dias=dias, valor_total=valor_total)
-                            ctrl_loc.atualizar(conexao, loc)
-                        else:
-                            print("\n[!] Carro selecionado não existe.")
-                    else:
-                        print("\n[!] Locação não encontrada.")
-                elif op_atv == "4":
-                    break
-                else:
-                    print("\n[!] Opção inválida!")
+if __name__ == "__main__":
+    main()
