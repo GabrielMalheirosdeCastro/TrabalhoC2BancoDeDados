@@ -1,92 +1,104 @@
-# Sistema em Python fazendo CRUD no Oracle
+# Sistema de Locação de Veículos
 
-Esse sistema é composto por um conjunto de tabelas que representam um sistema de locadora contendo tabelas como: clientes, carros e locações.
+Aplicação de terminal desenvolvida em Python para administrar clientes, veículos e locações usando MySQL. O sistema implementa operações CRUD e relatórios com consultas `JOIN`, `GROUP BY`, `COUNT` e `SUM`.
 
-O sistema exige que as tabelas existam, então basta executar o script Python a seguir para criação das tabelas e preenchimento de dados de exemplos:
-```shell
-~$ python create_tables.py
+> **Importante:** o grupo está trabalhando na unificação do banco de dados. Antes de executar os arquivos SQL ou alterar o nome do banco na aplicação, confirme com os responsáveis qual será o esquema definitivo. Os arquivos Python atuais esperam as tabelas `cliente`, `carro` e `locacao` descritas abaixo.
+
+## Funcionalidades
+
+- Cadastro, listagem, atualização e remoção de clientes.
+- Cadastro, listagem, atualização e remoção de veículos.
+- Registro, listagem, atualização e remoção de locações.
+- Confirmação antes de excluir registros.
+- Exclusão transacional das locações associadas quando o usuário confirma a exclusão de um cliente ou veículo.
+- Relatório detalhado de locações com `JOIN`.
+- Relatório de faturamento por modelo com agregação.
+- Validação de entradas numéricas, datas, campos obrigatórios e valores de diária.
+- Consultas parametrizadas para reduzir riscos de SQL injection e problemas com aspas nos dados.
+
+## Tecnologias
+
+- Python 3.10 ou superior (recomendado).
+- MySQL.
+- MySQL Connector/Python.
+
+## Estrutura do projeto
+
+```text
+.
+├── Diagramas_Relacionais/
+├── TabelasSQL/
+│   └── create_tables.sql
+├── src/
+│   ├── Classes/
+│   │   ├── Carro.py
+│   │   ├── Cliente.py
+│   │   └── Locacao.py
+│   ├── ControllerClasses/
+│   │   ├── ControllerCarro.py
+│   │   ├── ControllerCliente.py
+│   │   └── ControllerLocacao.py
+│   ├── Conexao.py
+│   ├── Relatorios.py
+│   └── main.py
+└── README.MD
 ```
 
-Para executar o sistema basta executar o script Python a seguir:
-```shell
-~$ python principal.py
+## Instalação
+
+1. Instale Python e MySQL.
+2. Na raiz do projeto, crie e ative um ambiente virtual (opcional, mas recomendado):
+
+   **Windows**
+   ```powershell
+   py -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+   **Linux/macOS**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+3. Instale o conector:
+   ```bash
+   python -m pip install mysql-connector-python
+   ```
+
+4. Configure usuário, senha e banco no arquivo `src/main.py` (objeto `Conexao`) e confirme que o arquivo `src/Conexao.py` está consistente com essa configuração. Não publique senhas reais no repositório.
+
+## Banco de dados
+
+O sistema Python espera estas tabelas e colunas:
+
+- `cliente`: `id_cliente`, `nome`, `cpf`, `telefone`
+- `carro`: `id_carro`, `modelo`, `marca`, `placa`, `valor_diaria`
+- `locacao`: `id_locacao`, `id_cliente`, `id_carro`, `data_locacao`, `dias`, `valor_total`
+
+As tabelas devem ter chaves primárias e relacionamentos entre `locacao.id_cliente` e `cliente.id_cliente`, e entre `locacao.id_carro` e `carro.id_carro`.
+
+O arquivo `TabelasSQL/create_tables.sql` existente pode estar em uma versão de esquema diferente da esperada pelo Python. **Não execute esse script sem confirmar a versão final com o grupo**, pois a unificação do banco está em andamento.
+
+Para inserir registros de demonstração, consulte `TabelasSQL/sample_data.sql`. Esse script foi escrito para o esquema listado acima e deve ser usado somente depois que o esquema final for confirmado e o banco estiver vazio ou após revisão dos dados que já existem.
+
+## Execução
+
+A partir da raiz do projeto:
+
+```bash
+python src/main.py
 ```
 
+Se o comando `python` não estiver disponível no ambiente, tente `py src/main.py` no Windows ou `python3 src/main.py` no Linux/macOS.
 
-## Organização
-\/ ABAIXO EDIÇAO PENDENTE FAVOR DESCONSIDERAR \/
-- [Diagramas_Relacionais](diagrams): Nesse diretório está o [diagrama relacional](diagrams/DIAGRAMA_RELACIONAL_PEDIDOS.pdf) (lógico) do sistema.
-    * O sistema possui cinco entidades: PRODUTOS, CLIENTES, FORNECEDORES, PEDIDOS e ITENS_PEDIDO
-- [sql](sql): Nesse diretório estão os scripts para criação das tabelas e inserção de dados fictícios para testes do sistema
-    * Certifique-se de que o usuário do banco possui todos os privilégios antes de executar os scripts de criação, caso ocorra erro, execute o comando a seguir com o superusuário via SQL Developer: `GRANT ALL PRIVILEGES TO LABDATABASE;`
-    * [create_tables_pedidos.sql](sql/create_tables_pedidos.sql): script responsável pela criação das tabelas, relacionamentos e criação de permissão no esquema LabDatabase.
-    * [inserting_samples_records.sql](sql/inserting_samples_records.sql): script responsável pela inserção dos registros fictícios para testes do sistema.
-    * [inserting_samples_related_records.sql](sql/inserting_samples_related_records.sql): script responsável pela inserção dos registros fictícios de pedidos e itens de pedidos para testes do sistema utilizando blocos PL/SQL.
-- [src](src): Nesse diretório estão os scripts do sistema
-    * [conexion](src/conexion): Nesse repositório encontra-se o [módulo de conexão com o banco de dados Oracle](src/conexion/oracle_queries.py). Esse módulo possui algumas funcionalidades úteis para execução de instruções DML e DDL, sendo possível obter JSON, Matriz e Pandas DataFrame.
-      - Exemplo de utilização para consultas simples:
+## Dados de demonstração
 
-        ```python
-        def listar_clientes(self, oracle:OracleQueries, need_connect:bool=False):
-            query = """
-                    select c.cpf
-                        , c.nome 
-                    from clientes c
-                    order by c.nome
-                    """
-            if need_connect:
-                oracle.connect()
-            print(oracle.sqlToDataFrame(query))
-        ```
-      - Exemplo de utilização para alteração de registros
+O arquivo `TabelasSQL/sample_data.sql` contém clientes, carros e locações de exemplo. Execute-o no banco MySQL somente após confirmar que as tabelas possuem as colunas esperadas. Os registros de exemplo usam CPF e placa próprios para facilitar a identificação; revise antes de importar para um banco que já contenha dados.
 
-        ```python
-        from conexion.oracle_queries import OracleQueries
-        def inserir_cliente(self) -> Cliente:
-            # Cria uma nova conexão com o banco que permite alteração
-            oracle = OracleQueries(can_write=True)
-            oracle.connect()
+## Observações
 
-            # Solicita ao usuario o novo CPF
-            cpf = input("CPF (Novo): ")
-
-            if self.verifica_existencia_cliente(oracle, cpf):
-                # Solicita ao usuario o novo nome
-                nome = input("Nome (Novo): ")
-                # Insere e persiste o novo cliente
-                oracle.write(f"insert into clientes values ('{cpf}', '{nome}')")
-                # Recupera os dados do novo cliente criado transformando em um DataFrame
-                df_cliente = oracle.sqlToDataFrame(f"select cpf, nome from clientes where cpf = '{cpf}'")
-                # Cria um novo objeto Cliente
-                novo_cliente = Cliente(df_cliente.cpf.values[0], df_cliente.nome.values[0])
-                # Exibe os atributos do novo cliente
-                print(novo_cliente.to_string())
-                # Retorna o objeto novo_cliente para utilização posterior, caso necessário
-                return novo_cliente
-            else:
-                print(f"O CPF {cpf} já está cadastrado.")
-                return None
-        ```
-      - Outros exemplos: [test.py](src/test.py)
-      - Caso esteja utilizando na máquina virtual antiga, você precisará alterar o método connect de:
-          ```python
-          self.conn = cx_Oracle.connect(user=self.user,
-                                  password=self.passwd,
-                                  dsn=self.connectionString()
-                                  )
-          ```
-        Para:
-          ```python
-          self.conn = cx_Oracle.connect(user=self.user,
-                                  password=self.passwd,
-                                  dsn=self.connectionString(in_container=True)
-                                  )
-          ```
-    * [controller](src/controller/): Nesse diretório encontram-sem as classes controladoras, responsáveis por realizar inserção, alteração e exclusão dos registros das tabelas.
-    * [model](src/model/): Nesse diretório encontram-ser as classes das entidades descritas no [diagrama relacional](diagrams/DIAGRAMA_RELACIONAL_PEDIDOS.pdf)
-    * [reports](src/reports/) Nesse diretório encontra-se a [classe](src/reports/relatorios.py) responsável por gerar todos os relatórios do sistema
-    * [sql](src/sql/): Nesse diretório encontram-se os scripts utilizados para geração dos relatórios a partir da [classe relatorios](src/reports/relatorios.py)
-    * [utils](src/utils/): Nesse diretório encontram-se scripts de [configuração](src/utils/config.py) e automatização da [tela de informações iniciais](src/utils/splash_screen.py)
-    * [create_tables_and_records.py](src/create_tables_and_records.py): Script responsável por criar as tabelas e registros fictícios. Esse script deve ser executado antes do script [principal.py](src/principal.py) para gerar as tabelas, caso não execute os scripts diretamente no SQL Developer ou em alguma outra IDE de acesso ao Banco de Dados.
-    * [principal.py](src/principal.py): Script responsável por ser a interface entre o usuário e os módulos de acesso ao Banco de Dados. Deve ser executado após a criação das tabelas.
-
+- As datas solicitadas pelo programa são informadas no formato `DD/MM/AAAA`.
+- O valor total da locação é calculado a partir do valor atual da diária multiplicado pela quantidade de dias.
+- O nome do banco configurado no ponto de entrada deve coincidir com o nome usado na conexão. Essa configuração deve ser alinhada com a decisão do grupo sobre a unificação.
+- Teste as operações em um banco de desenvolvimento antes de usar dados reais.
