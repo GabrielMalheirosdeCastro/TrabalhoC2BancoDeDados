@@ -1,74 +1,139 @@
 class ControllerLocacao:
-    def __init__(self):
-        pass
-
     def locacao_existe(self, conexao, id_locacao):
-        """Verifica se uma locação existe pelo ID"""
         cursor = conexao.cursor()
-        sql = "SELECT COUNT(1) FROM locacao WHERE id_locacao = " + str(id_locacao)
-        cursor.execute(sql)
-        existe = cursor.fetchone()[0] > 0
-        cursor.close()
-        return existe
+        try:
+            cursor.execute("SELECT COUNT(1) FROM locacao WHERE id_locacao = %s", (id_locacao,))
+            return cursor.fetchone()[0] > 0
+        finally:
+            cursor.close()
 
     def total_registros(self, conexao):
-        """Contagem para Splash Screen"""
         cursor = conexao.cursor()
-        sql = "SELECT COUNT(1) total_locacao FROM locacao"
-        cursor.execute(sql)
-        total = cursor.fetchone()[0]
-        cursor.close()
-        return total
+        try:
+            cursor.execute("SELECT COUNT(1) FROM locacao")
+            return cursor.fetchone()[0]
+        finally:
+            cursor.close()
 
     def listar(self, conexao):
-        """Lista todas as tuplas com FKs associadas e valores"""
         cursor = conexao.cursor()
-        sql = """
-            SELECT l.id_locacao, c.nome, k.modelo, l.data_locacao, l.dias, l.valor_total
-            FROM locacao l
-            INNER JOIN cliente c ON l.id_cliente = c.id_cliente
-            INNER JOIN carro k ON l.id_carro = k.id_carro
-        """
-        cursor.execute(sql)
-        resultados = cursor.fetchall()
-        cursor.close()
+        try:
+            cursor.execute(
+                """
+                SELECT l.id_locacao, c.nome, k.modelo, l.data_locacao,
+                       l.dias, l.valor_total
+                FROM locacao l
+                INNER JOIN cliente c ON l.id_cliente = c.id_cliente
+                INNER JOIN carro k ON l.id_carro = k.id_carro
+                ORDER BY l.data_locacao DESC, l.id_locacao DESC
+                """
+            )
+            resultados = cursor.fetchall()
+        finally:
+            cursor.close()
 
         print("\n--- LISTA DE LOCAÇÕES ---")
+        if not resultados:
+            print("Nenhuma locação cadastrada.")
         for row in resultados:
-            print(f"ID Locação: {row[0]} | Cliente: {row[1]} | Carro: {row[2]} | Data: {row[3]} | Dias: {row[4]} | Total: R$ {row[5]}")
+            print(
+                f"ID: {row[0]} | Cliente: {row[1]} | Carro: {row[2]} | "
+                f"Data: {row[3]} | Dias: {row[4]} | Total: R$ {float(row[5]):.2f}"
+            )
         return resultados
 
     def inserir(self, conexao, locacao):
-        """Inserção de nova locação (Valida FKs antes de inserir)"""
+        try:
+            dias = int(locacao.get_dias())
+            total = float(locacao.get_valor_total())
+            id_cliente = int(locacao.get_cliente().get_id_cliente())
+            id_carro = int(locacao.get_carro().get_id_carro())
+        except (TypeError, ValueError, AttributeError):
+            print("\n[!] Dados inválidos para registrar a locação.")
+            return False
+
+        if dias <= 0 or total < 0:
+            print("\n[!] Dias devem ser maiores que zero e o total não pode ser negativo.")
+            return False
+
         cursor = conexao.cursor()
-        sql = "INSERT INTO locacao (id_cliente, id_carro, data_locacao, dias, valor_total) VALUES (" + str(locacao.get_cliente().get_id_cliente()) + ", " + str(locacao.get_carro().get_id_carro()) + ", '" + locacao.get_data_locacao() + "', " + str(locacao.get_dias()) + ", " + str(locacao.get_valor_total()) + ")"
-        cursor.execute(sql)
-        conexao.commit()
-        cursor.close()
-        print("\n[+] Locação registrada com sucesso!")
+        try:
+            cursor.execute(
+                "INSERT INTO locacao (id_cliente, id_carro, data_locacao, dias, valor_total) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (id_cliente, id_carro, locacao.get_data_locacao(), dias, total),
+            )
+            conexao.commit()
+            print("\n[+] Locação registrada com sucesso!")
+            return True
+        except Exception as erro:
+            conexao.rollback()
+            print(f"\n[!] Não foi possível registrar a locação: {erro}")
+            return False
+        finally:
+            cursor.close()
 
     def atualizar(self, conexao, locacao):
-        """Atualização de locação existente"""
-        if not self.locacao_existe(conexao, locacao.get_id_locacao()):
-            print(f"\n[!] Erro: Locação com ID {locacao.get_id_locacao()} não existe.")
-            return
+        id_locacao = locacao.get_id_locacao()
+        if not self.locacao_existe(conexao, id_locacao):
+            print(f"\n[!] Locação com ID {id_locacao} não existe.")
+            return False
+        try:
+            dias = int(locacao.get_dias())
+            total = float(locacao.get_valor_total())
+            id_cliente = int(locacao.get_cliente().get_id_cliente())
+            id_carro = int(locacao.get_carro().get_id_carro())
+        except (TypeError, ValueError, AttributeError):
+            print("\n[!] Dados inválidos para atualizar a locação.")
+            return False
+        if dias <= 0 or total < 0:
+            print("\n[!] Dias devem ser maiores que zero e o total não pode ser negativo.")
+            return False
 
         cursor = conexao.cursor()
-        sql = "UPDATE locacao SET id_cliente = " + str(locacao.get_cliente().get_id_cliente()) + ", id_carro = " + str(locacao.get_carro().get_id_carro()) + ", data_locacao = '" + locacao.get_data_locacao() + "', dias = " + str(locacao.get_dias()) + ", valor_total = " + str(locacao.get_valor_total()) + " WHERE id_locacao = " + str(locacao.get_id_locacao())
-        cursor.execute(sql)
-        conexao.commit()
-        cursor.close()
-        print("\n[+] Locação atualizada com sucesso!")
+        try:
+            cursor.execute(
+                """
+                UPDATE locacao
+                SET id_cliente = %s, id_carro = %s, data_locacao = %s,
+                    dias = %s, valor_total = %s
+                WHERE id_locacao = %s
+                """,
+                (
+                    id_cliente, id_carro, locacao.get_data_locacao(),
+                    dias, total, id_locacao,
+                ),
+            )
+            conexao.commit()
+            print("\n[+] Locação atualizada com sucesso!")
+            return True
+        except Exception as erro:
+            conexao.rollback()
+            print(f"\n[!] Não foi possível atualizar a locação: {erro}")
+            return False
+        finally:
+            cursor.close()
 
     def remover(self, conexao, id_locacao):
-        """Remoção de registro da tabela filha"""
         if not self.locacao_existe(conexao, id_locacao):
-            print(f"\n[!] Erro: Locação com ID {id_locacao} não encontrada.")
-            return
+            print(f"\n[!] Locação com ID {id_locacao} não encontrada.")
+            return False
+        confirmacao = input(
+            f"Confirma a remoção da locação {id_locacao}? (S/N): "
+        ).strip().upper()
+        if confirmacao != "S":
+            print("\n[-] Operação cancelada.")
+            return False
 
         cursor = conexao.cursor()
-        sql = "DELETE FROM locacao WHERE id_locacao = " + str(id_locacao)
-        cursor.execute(sql)
-        conexao.commit()
-        cursor.close()
-        print("\n[+] Locação removida com sucesso!")
+        try:
+            cursor.execute("DELETE FROM locacao WHERE id_locacao = %s", (id_locacao,))
+            conexao.commit()
+            print("\n[+] Locação removida com sucesso!")
+            return True
+        except Exception as erro:
+            conexao.rollback()
+            print(f"\n[!] Não foi possível remover a locação: {erro}")
+            return False
+        finally:
+            cursor.close()
