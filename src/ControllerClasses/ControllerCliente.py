@@ -1,11 +1,8 @@
 class ControllerCliente:
-    def cliente_existe(self, conexao, id_cliente):
+    def cliente_existe(self, conexao, cpf):
         cursor = conexao.cursor()
         try:
-            cursor.execute(
-                "SELECT COUNT(1) FROM cliente WHERE id_cliente = %s",
-                (id_cliente,),
-            )
+            cursor.execute("SELECT COUNT(1) FROM CLIENTES WHERE CPF = :1", (cpf,))
             return cursor.fetchone()[0] > 0
         finally:
             cursor.close()
@@ -13,7 +10,7 @@ class ControllerCliente:
     def total_registros(self, conexao):
         cursor = conexao.cursor()
         try:
-            cursor.execute("SELECT COUNT(1) FROM cliente")
+            cursor.execute("SELECT COUNT(1) FROM CLIENTES")
             return cursor.fetchone()[0]
         finally:
             cursor.close()
@@ -22,7 +19,7 @@ class ControllerCliente:
         cursor = conexao.cursor()
         try:
             cursor.execute(
-                "SELECT id_cliente, nome, cpf, telefone FROM cliente ORDER BY nome"
+                "SELECT CPF, NOME, TELEFONE FROM CLIENTES ORDER BY NOME"
             )
             resultados = cursor.fetchall()
         finally:
@@ -31,25 +28,26 @@ class ControllerCliente:
         print("\n--- LISTA DE CLIENTES ---")
         if not resultados:
             print("Nenhum cliente cadastrado.")
-        for row in resultados:
-            print(f"ID: {row[0]} | Nome: {row[1]} | CPF: {row[2]} | Tel.: {row[3]}")
+        for cpf, nome, telefone in resultados:
+            print(f"CPF: {cpf} | Nome: {nome} | Tel.: {telefone or '-'}")
         return resultados
 
     def inserir(self, conexao, cliente):
-        dados = (
-            cliente.get_nome().strip(),
-            cliente.get_cpf().strip(),
-            cliente.get_telefone().strip(),
-        )
-        if not all(dados):
-            print("\n[!] Nome, CPF e telefone são obrigatórios.")
+        cpf = cliente.get_cpf().strip()
+        nome = cliente.get_nome().strip()
+        telefone = cliente.get_telefone().strip() or None
+        if len(cpf) != 11 or not cpf.isdigit():
+            print("\n[!] O CPF deve conter exatamente 11 números.")
+            return False
+        if not nome:
+            print("\n[!] O nome é obrigatório.")
             return False
 
         cursor = conexao.cursor()
         try:
             cursor.execute(
-                "INSERT INTO cliente (nome, cpf, telefone) VALUES (%s, %s, %s)",
-                dados,
+                "INSERT INTO CLIENTES (CPF, NOME, TELEFONE) VALUES (:1, :2, :3)",
+                (cpf, nome, telefone),
             )
             conexao.commit()
             print("\n[+] Cliente inserido com sucesso!")
@@ -61,26 +59,34 @@ class ControllerCliente:
         finally:
             cursor.close()
 
-    def atualizar(self, conexao, cliente):
-        id_cliente = cliente.get_id_cliente()
-        dados = (
-            cliente.get_nome().strip(),
-            cliente.get_cpf().strip(),
-            cliente.get_telefone().strip(),
-        )
-        if not all(dados):
-            print("\n[!] Nome, CPF e telefone são obrigatórios.")
+    def atualizar(self, conexao, cpf_atual, cliente):
+        cpf_novo = cliente.get_cpf().strip()
+        nome = cliente.get_nome().strip()
+        telefone = cliente.get_telefone().strip() or None
+        if len(cpf_novo) != 11 or not cpf_novo.isdigit():
+            print("\n[!] O CPF deve conter exatamente 11 números.")
             return False
-        if not self.cliente_existe(conexao, id_cliente):
-            print(f"\n[!] Cliente com ID {id_cliente} não existe.")
+        if not nome:
+            print("\n[!] O nome é obrigatório.")
+            return False
+        if not self.cliente_existe(conexao, cpf_atual):
+            print(f"\n[!] Cliente com CPF {cpf_atual} não existe.")
             return False
 
         cursor = conexao.cursor()
         try:
             cursor.execute(
-                "UPDATE cliente SET nome = %s, cpf = %s, telefone = %s "
-                "WHERE id_cliente = %s",
-                (*dados, id_cliente),
+                "SELECT COUNT(1) FROM LOCACOES WHERE CPF = :1",
+                (cpf_atual,),
+            )
+            possui_locacoes = cursor.fetchone()[0] > 0
+            if possui_locacoes and cpf_novo != cpf_atual:
+                print("\n[!] Não é possível alterar o CPF de um cliente com locações.")
+                return False
+            cursor.execute(
+                "UPDATE CLIENTES SET CPF = :1, NOME = :2, TELEFONE = :3 "
+                "WHERE CPF = :4",
+                (cpf_novo, nome, telefone, cpf_atual),
             )
             conexao.commit()
             print("\n[+] Cliente atualizado com sucesso!")
@@ -92,21 +98,17 @@ class ControllerCliente:
         finally:
             cursor.close()
 
-    def remover(self, conexao, id_cliente):
-        if not self.cliente_existe(conexao, id_cliente):
-            print(f"\n[!] Cliente com ID {id_cliente} não encontrado.")
+    def remover(self, conexao, cpf):
+        if not self.cliente_existe(conexao, cpf):
+            print(f"\n[!] Cliente com CPF {cpf} não encontrado.")
             return False
 
         cursor = conexao.cursor()
         try:
-            cursor.execute(
-                "SELECT COUNT(1) FROM locacao WHERE id_cliente = %s",
-                (id_cliente,),
-            )
+            cursor.execute("SELECT COUNT(1) FROM LOCACOES WHERE CPF = :1", (cpf,))
             possui_locacoes = cursor.fetchone()[0] > 0
-
             if possui_locacoes:
-                print(f"\n[!] O cliente ID {id_cliente} possui locações associadas.")
+                print(f"\n[!] O cliente CPF {cpf} possui locações associadas.")
                 confirmacao = input(
                     "Remover o cliente e TODAS as locações vinculadas? (S/N): "
                 ).strip().upper()
@@ -114,9 +116,9 @@ class ControllerCliente:
                     conexao.rollback()
                     print("\n[-] Operação cancelada.")
                     return False
-                cursor.execute("DELETE FROM locacao WHERE id_cliente = %s", (id_cliente,))
+                cursor.execute("DELETE FROM LOCACOES WHERE CPF = :1", (cpf,))
 
-            cursor.execute("DELETE FROM cliente WHERE id_cliente = %s", (id_cliente,))
+            cursor.execute("DELETE FROM CLIENTES WHERE CPF = :1", (cpf,))
             conexao.commit()
             print("\n[+] Cliente removido com sucesso!")
             return True

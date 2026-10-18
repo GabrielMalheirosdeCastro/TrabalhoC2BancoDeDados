@@ -1,5 +1,6 @@
-from datetime import datetime
-from Conexao import Conexao
+from datetime import datetime, timedelta
+
+from newConexao import Conexao
 from Classes.Cliente import Cliente
 from Classes.Carro import Carro
 from Classes.Locacao import Locacao
@@ -65,12 +66,12 @@ def exibir_splash_screen(ctrl_cli, ctrl_car, ctrl_loc, conexao):
     print("=" * 65)
 
 
-def obter_valor_diaria(conexao, id_carro):
+def obter_valor_diaria(conexao, placa):
     cursor = conexao.cursor()
     try:
         cursor.execute(
-            "SELECT valor_diaria FROM carro WHERE id_carro = %s",
-            (id_carro,),
+            "SELECT VALOR_DIARIA FROM CARROS WHERE PLACA = :1",
+            (placa,),
         )
         resultado = cursor.fetchone()
         return float(resultado[0]) if resultado else None
@@ -98,34 +99,40 @@ def menu_inserir(conexao, ctrl_cli, ctrl_car, ctrl_loc):
         opcao = input("Escolha: ").strip()
         if opcao == "1":
             cliente = Cliente(
+                cpf=ler_texto("CPF (11 números): "),
                 nome=ler_texto("Nome: "),
-                cpf=ler_texto("CPF: "),
-                telefone=ler_texto("Telefone: "),
+                telefone=input("Telefone (opcional): ").strip(),
             )
             ctrl_cli.inserir(conexao, cliente)
         elif opcao == "2":
             carro = Carro(
+                placa=ler_texto("Placa: ").upper(),
                 modelo=ler_texto("Modelo: "),
                 marca=ler_texto("Marca: "),
-                placa=ler_texto("Placa: ").upper(),
                 valor_diaria=ler_valor("Valor da diária (R$): "),
             )
             ctrl_car.inserir(conexao, carro)
         elif opcao == "3":
             ctrl_cli.listar(conexao)
-            id_cliente = ler_inteiro("ID do cliente: ", 1)
+            cpf = ler_texto("CPF do cliente: ")
+            if not ctrl_cli.cliente_existe(conexao, cpf):
+                print("[!] Cliente não encontrado.")
+                continue
             ctrl_car.listar(conexao)
-            id_carro = ler_inteiro("ID do carro: ", 1)
-            data = ler_data("Data da locação (DD/MM/AAAA): ")
-            dias = ler_inteiro("Quantidade de dias: ", 1)
-            diaria = obter_valor_diaria(conexao, id_carro)
+            placa = ler_texto("Placa do carro: ").upper()
+            diaria = obter_valor_diaria(conexao, placa)
             if diaria is None:
                 print("[!] Carro não encontrado.")
                 continue
+            data_inicio = ler_data("Data de início (DD/MM/AAAA): ")
+            dias = ler_inteiro("Quantidade de dias: ", 1)
+            data_previsao = data_inicio + timedelta(days=dias)
+            print(f"Data prevista para devolução: {data_previsao.strftime('%d/%m/%Y')}")
             locacao = Locacao(
-                cliente=Cliente(id_cliente=id_cliente),
-                carro=Carro(id_carro=id_carro),
-                data_locacao=data,
+                cliente=Cliente(cpf=cpf),
+                carro=Carro(placa=placa),
+                data_inicio=data_inicio,
+                data_previsao=data_previsao,
                 dias=dias,
                 valor_total=diaria * dias,
             )
@@ -142,13 +149,13 @@ def menu_remover(conexao, ctrl_cli, ctrl_car, ctrl_loc):
         opcao = input("Escolha: ").strip()
         if opcao == "1":
             ctrl_cli.listar(conexao)
-            ctrl_cli.remover(conexao, ler_inteiro("ID do cliente: ", 1))
+            ctrl_cli.remover(conexao, ler_texto("CPF do cliente: "))
         elif opcao == "2":
             ctrl_car.listar(conexao)
-            ctrl_car.remover(conexao, ler_inteiro("ID do carro: ", 1))
+            ctrl_car.remover(conexao, ler_texto("Placa do carro: ").upper())
         elif opcao == "3":
             ctrl_loc.listar(conexao)
-            ctrl_loc.remover(conexao, ler_inteiro("ID da locação: ", 1))
+            ctrl_loc.remover(conexao, ler_inteiro("Código da locação: ", 1))
         elif opcao == "4":
             return
         else:
@@ -157,75 +164,91 @@ def menu_remover(conexao, ctrl_cli, ctrl_car, ctrl_loc):
 
 def menu_atualizar(conexao, ctrl_cli, ctrl_car, ctrl_loc):
     while True:
-        print("\n--- ATUALIZAR ---\n1. Cliente\n2. Carro\n3. Locação\n4. Voltar")
+        print(
+            "\n--- ATUALIZAR ---\n"
+            "1. Cliente\n2. Carro\n3. Locação\n4. Registrar devolução\n5. Voltar"
+        )
         opcao = input("Escolha: ").strip()
         if opcao == "1":
             ctrl_cli.listar(conexao)
-            id_cliente = ler_inteiro("ID do cliente: ", 1)
-            if not ctrl_cli.cliente_existe(conexao, id_cliente):
+            cpf_atual = ler_texto("CPF atual do cliente: ")
+            if not ctrl_cli.cliente_existe(conexao, cpf_atual):
                 print("[!] Cliente não encontrado.")
                 continue
             ctrl_cli.atualizar(
                 conexao,
+                cpf_atual,
                 Cliente(
-                    id_cliente=id_cliente,
+                    cpf=ler_texto("Novo CPF (11 números): "),
                     nome=ler_texto("Novo nome: "),
-                    cpf=ler_texto("Novo CPF: "),
-                    telefone=ler_texto("Novo telefone: "),
+                    telefone=input("Novo telefone (opcional): ").strip(),
                 ),
             )
         elif opcao == "2":
             ctrl_car.listar(conexao)
-            id_carro = ler_inteiro("ID do carro: ", 1)
-            if not ctrl_car.carro_existe(conexao, id_carro):
+            placa_atual = ler_texto("Placa atual do carro: ").upper()
+            if not ctrl_car.carro_existe(conexao, placa_atual):
                 print("[!] Carro não encontrado.")
                 continue
             ctrl_car.atualizar(
                 conexao,
+                placa_atual,
                 Carro(
-                    id_carro=id_carro,
+                    placa=ler_texto("Nova placa: ").upper(),
                     modelo=ler_texto("Novo modelo: "),
                     marca=ler_texto("Nova marca: "),
-                    placa=ler_texto("Nova placa: ").upper(),
                     valor_diaria=ler_valor("Novo valor da diária (R$): "),
                 ),
             )
         elif opcao == "3":
             ctrl_loc.listar(conexao)
-            id_locacao = ler_inteiro("ID da locação: ", 1)
-            if not ctrl_loc.locacao_existe(conexao, id_locacao):
+            codigo = ler_inteiro("Código da locação: ", 1)
+            if not ctrl_loc.locacao_existe(conexao, codigo):
                 print("[!] Locação não encontrada.")
                 continue
             ctrl_cli.listar(conexao)
-            id_cliente = ler_inteiro("Novo ID do cliente: ", 1)
+            cpf = ler_texto("CPF do cliente: ")
+            if not ctrl_cli.cliente_existe(conexao, cpf):
+                print("[!] Cliente não encontrado.")
+                continue
             ctrl_car.listar(conexao)
-            id_carro = ler_inteiro("Novo ID do carro: ", 1)
-            data = ler_data("Nova data (DD/MM/AAAA): ")
-            dias = ler_inteiro("Nova quantidade de dias: ", 1)
-            diaria = obter_valor_diaria(conexao, id_carro)
+            placa = ler_texto("Placa do carro: ").upper()
+            diaria = obter_valor_diaria(conexao, placa)
             if diaria is None:
                 print("[!] Carro não encontrado.")
                 continue
+            data_inicio = ler_data("Nova data de início (DD/MM/AAAA): ")
+            dias = ler_inteiro("Nova quantidade de dias: ", 1)
+            data_previsao = data_inicio + timedelta(days=dias)
             ctrl_loc.atualizar(
                 conexao,
                 Locacao(
-                    id_locacao=id_locacao,
-                    cliente=Cliente(id_cliente=id_cliente),
-                    carro=Carro(id_carro=id_carro),
-                    data_locacao=data,
+                    codigo_locacao=codigo,
+                    cliente=Cliente(cpf=cpf),
+                    carro=Carro(placa=placa),
+                    data_inicio=data_inicio,
+                    data_previsao=data_previsao,
                     dias=dias,
                     valor_total=diaria * dias,
                 ),
             )
         elif opcao == "4":
+            ctrl_loc.listar(conexao)
+            codigo = ler_inteiro("Código da locação devolvida: ", 1)
+            data_fim = ler_data("Data efetiva da devolução (DD/MM/AAAA): ")
+            ctrl_loc.registrar_devolucao(conexao, codigo, data_fim)
+        elif opcao == "5":
             return
         else:
             print("[!] Opção inválida.")
 
 
 def main():
-    # Atenção: mantenha o nome do banco alinhado com a configuração acordada pelo grupo.
-    db = Conexao(database="locadora_veiculos", user="root", password="")
+    db = Conexao(
+        host="localhost",
+        porta=1521,
+        servico="XEPDB1",
+    )
     conexao = db.conectar()
     if not conexao:
         print("\n[!] Não foi possível conectar ao banco de dados.")

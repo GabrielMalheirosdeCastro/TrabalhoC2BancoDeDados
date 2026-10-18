@@ -7,12 +7,13 @@ class Relatorios:
         try:
             cursor.execute(
                 """
-                SELECT l.id_locacao, c.nome, k.modelo, k.placa,
-                       l.data_locacao, l.dias, l.valor_total
-                FROM locacao l
-                INNER JOIN cliente c ON l.id_cliente = c.id_cliente
-                INNER JOIN carro k ON l.id_carro = k.id_carro
-                ORDER BY l.data_locacao DESC, l.id_locacao DESC
+                SELECT l.CODIGO_LOCACAO, c.NOME, k.MODELO, k.PLACA,
+                       l.DATA_INICIO_LOCACAO, l.DATA_PREVISAO_LOCACAO,
+                       l.DATA_FIM_LOCACAO, l.DIAS, l.VALOR_TOTAL
+                FROM LOCACOES l
+                INNER JOIN CLIENTES c ON l.CPF = c.CPF
+                INNER JOIN CARROS k ON l.PLACA = k.PLACA
+                ORDER BY l.DATA_INICIO_LOCACAO DESC, l.CODIGO_LOCACAO DESC
                 """
             )
             resultados = cursor.fetchall()
@@ -23,11 +24,13 @@ class Relatorios:
         if not resultados:
             print("Ainda não há locações para exibir.")
             return
-        for row in resultados:
+        for codigo, nome, modelo, placa, inicio, previsao, fim, dias, total in resultados:
+            fim_texto = fim if fim is not None else "Em aberto"
             print(
-                f"Locação #{row[0]} | Cliente: {row[1]} | "
-                f"Veículo: {row[2]} ({row[3]}) | Data: {row[4]} | "
-                f"Dias: {row[5]} | Total: R$ {float(row[6]):.2f}"
+                f"Locação #{codigo} | Cliente: {nome} | "
+                f"Veículo: {modelo} ({placa}) | Início: {inicio} | "
+                f"Previsão: {previsao} | Fim: {fim_texto} | "
+                f"Dias: {dias} | Total: R$ {float(total):.2f}"
             )
 
     def relatorio_faturamento_por_modelo(self):
@@ -35,12 +38,12 @@ class Relatorios:
         try:
             cursor.execute(
                 """
-                SELECT k.modelo, COUNT(l.id_locacao) AS qtd_locacoes,
-                       COALESCE(SUM(l.valor_total), 0) AS total_faturado
-                FROM carro k
-                LEFT JOIN locacao l ON l.id_carro = k.id_carro
-                GROUP BY k.id_carro, k.modelo
-                ORDER BY total_faturado DESC, k.modelo
+                SELECT k.MODELO, COUNT(l.CODIGO_LOCACAO) AS QTD_LOCACOES,
+                       COALESCE(SUM(l.VALOR_TOTAL), 0) AS TOTAL_FATURADO
+                FROM CARROS k
+                LEFT JOIN LOCACOES l ON l.PLACA = k.PLACA
+                GROUP BY k.PLACA, k.MODELO
+                ORDER BY TOTAL_FATURADO DESC, k.MODELO
                 """
             )
             resultados = cursor.fetchall()

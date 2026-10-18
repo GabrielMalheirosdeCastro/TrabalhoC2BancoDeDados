@@ -1,8 +1,8 @@
 class ControllerCarro:
-    def carro_existe(self, conexao, id_carro):
+    def carro_existe(self, conexao, placa):
         cursor = conexao.cursor()
         try:
-            cursor.execute("SELECT COUNT(1) FROM carro WHERE id_carro = %s", (id_carro,))
+            cursor.execute("SELECT COUNT(1) FROM CARROS WHERE PLACA = :1", (placa,))
             return cursor.fetchone()[0] > 0
         finally:
             cursor.close()
@@ -10,7 +10,7 @@ class ControllerCarro:
     def total_registros(self, conexao):
         cursor = conexao.cursor()
         try:
-            cursor.execute("SELECT COUNT(1) FROM carro")
+            cursor.execute("SELECT COUNT(1) FROM CARROS")
             return cursor.fetchone()[0]
         finally:
             cursor.close()
@@ -19,8 +19,8 @@ class ControllerCarro:
         cursor = conexao.cursor()
         try:
             cursor.execute(
-                "SELECT id_carro, modelo, marca, placa, valor_diaria "
-                "FROM carro ORDER BY modelo"
+                "SELECT PLACA, MODELO, MARCA, VALOR_DIARIA "
+                "FROM CARROS ORDER BY MODELO"
             )
             resultados = cursor.fetchall()
         finally:
@@ -29,10 +29,10 @@ class ControllerCarro:
         print("\n--- LISTA DE CARROS ---")
         if not resultados:
             print("Nenhum carro cadastrado.")
-        for row in resultados:
+        for placa, modelo, marca, diaria in resultados:
             print(
-                f"ID: {row[0]} | Modelo: {row[1]} | Marca: {row[2]} | "
-                f"Placa: {row[3]} | Diária: R$ {float(row[4]):.2f}"
+                f"Placa: {placa} | Modelo: {modelo} | Marca: {marca} | "
+                f"Diária: R$ {float(diaria):.2f}"
             )
         return resultados
 
@@ -43,14 +43,13 @@ class ControllerCarro:
             print("\n[!] O valor da diária deve ser numérico.")
             return False
 
-        dados = (
-            carro.get_modelo().strip(),
-            carro.get_marca().strip(),
-            carro.get_placa().strip().upper(),
-            diaria,
-        )
+        placa = carro.get_placa().strip().upper()
+        dados = (placa, carro.get_modelo().strip(), carro.get_marca().strip(), diaria)
         if not all(dados[:3]):
-            print("\n[!] Modelo, marca e placa são obrigatórios.")
+            print("\n[!] Placa, modelo e marca são obrigatórios.")
+            return False
+        if len(placa) > 7:
+            print("\n[!] A placa pode ter no máximo 7 caracteres.")
             return False
         if diaria <= 0:
             print("\n[!] O valor da diária deve ser maior que zero.")
@@ -59,8 +58,8 @@ class ControllerCarro:
         cursor = conexao.cursor()
         try:
             cursor.execute(
-                "INSERT INTO carro (modelo, marca, placa, valor_diaria) "
-                "VALUES (%s, %s, %s, %s)",
+                "INSERT INTO CARROS (PLACA, MODELO, MARCA, VALOR_DIARIA) "
+                "VALUES (:1, :2, :3, :4)",
                 dados,
             )
             conexao.commit()
@@ -73,33 +72,40 @@ class ControllerCarro:
         finally:
             cursor.close()
 
-    def atualizar(self, conexao, carro):
-        id_carro = carro.get_id_carro()
+    def atualizar(self, conexao, placa_atual, carro):
+        placa_nova = carro.get_placa().strip().upper()
         try:
             diaria = float(carro.get_valor_diaria())
         except (TypeError, ValueError):
             print("\n[!] O valor da diária deve ser numérico.")
             return False
 
-        dados = (
-            carro.get_modelo().strip(),
-            carro.get_marca().strip(),
-            carro.get_placa().strip().upper(),
-            diaria,
-        )
-        if not all(dados[:3]) or diaria <= 0:
-            print("\n[!] Preencha modelo, marca e placa; a diária deve ser maior que zero.")
+        modelo = carro.get_modelo().strip()
+        marca = carro.get_marca().strip()
+        if not modelo or not marca or not placa_nova or diaria <= 0:
+            print("\n[!] Preencha placa, modelo e marca; a diária deve ser maior que zero.")
             return False
-        if not self.carro_existe(conexao, id_carro):
-            print(f"\n[!] Carro com ID {id_carro} não existe.")
+        if len(placa_nova) > 7:
+            print("\n[!] A placa pode ter no máximo 7 caracteres.")
+            return False
+        if not self.carro_existe(conexao, placa_atual):
+            print(f"\n[!] Carro com placa {placa_atual} não existe.")
             return False
 
         cursor = conexao.cursor()
         try:
             cursor.execute(
-                "UPDATE carro SET modelo = %s, marca = %s, placa = %s, "
-                "valor_diaria = %s WHERE id_carro = %s",
-                (*dados, id_carro),
+                "SELECT COUNT(1) FROM LOCACOES WHERE PLACA = :1",
+                (placa_atual,),
+            )
+            possui_locacoes = cursor.fetchone()[0] > 0
+            if possui_locacoes and placa_nova != placa_atual:
+                print("\n[!] Não é possível alterar a placa de um carro com locações.")
+                return False
+            cursor.execute(
+                "UPDATE CARROS SET PLACA = :1, MODELO = :2, MARCA = :3, "
+                "VALOR_DIARIA = :4 WHERE PLACA = :5",
+                (placa_nova, modelo, marca, diaria, placa_atual),
             )
             conexao.commit()
             print("\n[+] Carro atualizado com sucesso!")
@@ -111,17 +117,17 @@ class ControllerCarro:
         finally:
             cursor.close()
 
-    def remover(self, conexao, id_carro):
-        if not self.carro_existe(conexao, id_carro):
-            print(f"\n[!] Carro com ID {id_carro} não encontrado.")
+    def remover(self, conexao, placa):
+        if not self.carro_existe(conexao, placa):
+            print(f"\n[!] Carro com placa {placa} não encontrado.")
             return False
 
         cursor = conexao.cursor()
         try:
-            cursor.execute("SELECT COUNT(1) FROM locacao WHERE id_carro = %s", (id_carro,))
+            cursor.execute("SELECT COUNT(1) FROM LOCACOES WHERE PLACA = :1", (placa,))
             possui_locacoes = cursor.fetchone()[0] > 0
             if possui_locacoes:
-                print(f"\n[!] O carro ID {id_carro} possui locações associadas.")
+                print(f"\n[!] O carro de placa {placa} possui locações associadas.")
                 confirmacao = input(
                     "Remover o carro e TODAS as locações vinculadas? (S/N): "
                 ).strip().upper()
@@ -129,9 +135,9 @@ class ControllerCarro:
                     conexao.rollback()
                     print("\n[-] Operação cancelada.")
                     return False
-                cursor.execute("DELETE FROM locacao WHERE id_carro = %s", (id_carro,))
+                cursor.execute("DELETE FROM LOCACOES WHERE PLACA = :1", (placa,))
 
-            cursor.execute("DELETE FROM carro WHERE id_carro = %s", (id_carro,))
+            cursor.execute("DELETE FROM CARROS WHERE PLACA = :1", (placa,))
             conexao.commit()
             print("\n[+] Carro removido com sucesso!")
             return True

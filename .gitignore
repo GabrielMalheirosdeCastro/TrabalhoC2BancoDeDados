@@ -110,6 +110,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Oracle password file (copy authentication.example.oracle to this name locally)
+/src/conexion/passphrase/authentication.oracle
+
 # Spyder project settings
 .spyderproject
 .spyproject
