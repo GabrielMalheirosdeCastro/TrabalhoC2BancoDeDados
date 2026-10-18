@@ -1,86 +1,130 @@
 class ControllerCliente:
-    def __init__(self):
-        pass
-
-    def cliente_existe(self, conexao, id_cliente):
-        """Verifica se um cliente existe pelo ID"""
+    def cliente_existe(self, conexao, cpf):
         cursor = conexao.cursor()
-        sql = "SELECT COUNT(1) FROM cliente WHERE id_cliente = " + str(id_cliente)
-        cursor.execute(sql)
-        existe = cursor.fetchone()[0] > 0
-        cursor.close()
-        return existe
+        try:
+            cursor.execute("SELECT COUNT(1) FROM CLIENTES WHERE CPF = :1", (cpf,))
+            return cursor.fetchone()[0] > 0
+        finally:
+            cursor.close()
 
     def total_registros(self, conexao):
-        """Contagem para Splash Screen"""
         cursor = conexao.cursor()
-        sql = "SELECT COUNT(1) total_cliente FROM cliente"
-        cursor.execute(sql)
-        total = cursor.fetchone()[0]
-        cursor.close()
-        return total
+        try:
+            cursor.execute("SELECT COUNT(1) FROM CLIENTES")
+            return cursor.fetchone()[0]
+        finally:
+            cursor.close()
 
     def listar(self, conexao):
-        """Lista todas as tuplas com PK e campo descritivo (Item 6.c.3 / 6.d.3)"""
         cursor = conexao.cursor()
-        sql = "SELECT id_cliente, nome, cpf, telefone FROM cliente"
-        cursor.execute(sql)
-        resultados = cursor.fetchall()
-        cursor.close()
-        
+        try:
+            cursor.execute(
+                "SELECT CPF, NOME, TELEFONE FROM CLIENTES ORDER BY NOME"
+            )
+            resultados = cursor.fetchall()
+        finally:
+            cursor.close()
+
         print("\n--- LISTA DE CLIENTES ---")
-        for row in resultados:
-            print(f"ID: {row[0]} | Nome: {row[1]} | CPF: {row[2]} | Tel: {row[3]}")
+        if not resultados:
+            print("Nenhum cliente cadastrado.")
+        for cpf, nome, telefone in resultados:
+            print(f"CPF: {cpf} | Nome: {nome} | Tel.: {telefone or '-'}")
         return resultados
 
     def inserir(self, conexao, cliente):
-        """Inserção de novo cliente (Item 6.b)"""
-        cursor = conexao.cursor()
-        sql = "INSERT INTO cliente (nome, cpf, telefone) VALUES ('" + cliente.get_nome() + "', '" + cliente.get_cpf() + "', '" + cliente.get_telefone() + "')"
-        cursor.execute(sql)
-        conexao.commit()
-        cursor.close()
-        print("\n[+] Cliente inserido com sucesso!")
-
-    def atualizar(self, conexao, cliente):
-        """Atualização de cliente existente (Item 6.d)"""
-        if not self.cliente_existe(conexao, cliente.get_id_cliente()):
-            print(f"\n[!] Erro: Cliente com ID {cliente.get_id_cliente()} não existe.")
-            return
+        cpf = cliente.get_cpf().strip()
+        nome = cliente.get_nome().strip()
+        telefone = cliente.get_telefone().strip() or None
+        if len(cpf) != 11 or not cpf.isdigit():
+            print("\n[!] O CPF deve conter exatamente 11 números.")
+            return False
+        if not nome:
+            print("\n[!] O nome é obrigatório.")
+            return False
 
         cursor = conexao.cursor()
-        sql = "UPDATE cliente SET nome = '" + cliente.get_nome() + "', cpf = '" + cliente.get_cpf() + "', telefone = '" + cliente.get_telefone() + "' WHERE id_cliente = " + str(cliente.get_id_cliente())
-        cursor.execute(sql)
-        conexao.commit()
-        cursor.close()
-        print("\n[+] Cliente atualizado com sucesso!")
+        try:
+            cursor.execute(
+                "INSERT INTO CLIENTES (CPF, NOME, TELEFONE) VALUES (:1, :2, :3)",
+                (cpf, nome, telefone),
+            )
+            conexao.commit()
+            print("\n[+] Cliente inserido com sucesso!")
+            return True
+        except Exception as erro:
+            conexao.rollback()
+            print(f"\n[!] Não foi possível inserir o cliente: {erro}")
+            return False
+        finally:
+            cursor.close()
 
-    def remover(self, conexao, id_cliente):
-        """Remoção de cliente com tratamento de FK (Item 6.c)"""
-        if not self.cliente_existe(conexao, id_cliente):
-            print(f"\n[!] Erro: Cliente com ID {id_cliente} não encontrado.")
-            return
+    def atualizar(self, conexao, cpf_atual, cliente):
+        cpf_novo = cliente.get_cpf().strip()
+        nome = cliente.get_nome().strip()
+        telefone = cliente.get_telefone().strip() or None
+        if len(cpf_novo) != 11 or not cpf_novo.isdigit():
+            print("\n[!] O CPF deve conter exatamente 11 números.")
+            return False
+        if not nome:
+            print("\n[!] O nome é obrigatório.")
+            return False
+        if not self.cliente_existe(conexao, cpf_atual):
+            print(f"\n[!] Cliente com CPF {cpf_atual} não existe.")
+            return False
 
         cursor = conexao.cursor()
+        try:
+            cursor.execute(
+                "SELECT COUNT(1) FROM LOCACOES WHERE CPF = :1",
+                (cpf_atual,),
+            )
+            possui_locacoes = cursor.fetchone()[0] > 0
+            if possui_locacoes and cpf_novo != cpf_atual:
+                print("\n[!] Não é possível alterar o CPF de um cliente com locações.")
+                return False
+            cursor.execute(
+                "UPDATE CLIENTES SET CPF = :1, NOME = :2, TELEFONE = :3 "
+                "WHERE CPF = :4",
+                (cpf_novo, nome, telefone, cpf_atual),
+            )
+            conexao.commit()
+            print("\n[+] Cliente atualizado com sucesso!")
+            return True
+        except Exception as erro:
+            conexao.rollback()
+            print(f"\n[!] Não foi possível atualizar o cliente: {erro}")
+            return False
+        finally:
+            cursor.close()
 
-        # Verificação de Foreign Key em locacao (Item 6.c.5.i)
-        sql_fk = "SELECT COUNT(1) FROM locacao WHERE id_cliente = " + str(id_cliente)
-        cursor.execute(sql_fk)
-        has_fk = cursor.fetchone()[0]
+    def remover(self, conexao, cpf):
+        if not self.cliente_existe(conexao, cpf):
+            print(f"\n[!] Cliente com CPF {cpf} não encontrado.")
+            return False
 
-        if has_fk > 0:
-            print(f"\n[!] Atenção: O cliente ID {id_cliente} possui locações associadas!")
-            confirmacao = input("Deseja remover o cliente E TODAS as suas locações vinculadas? (S/N): ")
-            if confirmacao.upper() == 'S':
-                sql_del_filha = "DELETE FROM locacao WHERE id_cliente = " + str(id_cliente)
-                cursor.execute(sql_del_filha)
-            else:
-                print("\n[-] Operação cancelada.")
-                cursor.close()
-                return
+        cursor = conexao.cursor()
+        try:
+            cursor.execute("SELECT COUNT(1) FROM LOCACOES WHERE CPF = :1", (cpf,))
+            possui_locacoes = cursor.fetchone()[0] > 0
+            if possui_locacoes:
+                print(f"\n[!] O cliente CPF {cpf} possui locações associadas.")
+                confirmacao = input(
+                    "Remover o cliente e TODAS as locações vinculadas? (S/N): "
+                ).strip().upper()
+                if confirmacao != "S":
+                    conexao.rollback()
+                    print("\n[-] Operação cancelada.")
+                    return False
+                cursor.execute("DELETE FROM LOCACOES WHERE CPF = :1", (cpf,))
 
-        sql_del_pai = "DELETE FROM cliente WHERE id_cliente = " + str(id_cliente)
-        cursor.execute(sql_del_pai)
-        conexao.commit()
-        cursor.close()
-        print("\n[+] Cliente removido com sucesso!")
+            cursor.execute("DELETE FROM CLIENTES WHERE CPF = :1", (cpf,))
+            conexao.commit()
+            print("\n[+] Cliente removido com sucesso!")
+            return True
+        except Exception as erro:
+            conexao.rollback()
+            print(f"\n[!] Não foi possível remover o cliente: {erro}")
+            return False
+        finally:
+            cursor.close()
